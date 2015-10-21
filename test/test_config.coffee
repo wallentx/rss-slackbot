@@ -21,6 +21,14 @@ describe "config.json", ->
 
     assert.equal typeof config['slack'], 'object'
 
-  it 'should have feeds', ->
+  it 'should have channels', ->
 
-    assert.ok config['feeds'] instanceof Array
+    assert.ok config['channels'] instanceof Array
+
+  it 'should have channels.name', ->
+
+    assert.ok config['channels'][0]['name'] != null
+
+  it 'should have channels.feeds', ->
+
+    assert.ok config['channels'][0]['feeds'] instanceof Array

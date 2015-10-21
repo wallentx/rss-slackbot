@@ -43,9 +43,10 @@ fetch_feeds_and_send_to = (channel, feeds, opts = {}, callback) ->
           return
         for entry in entries
           do (entry) ->
-            debug "fetch - #{JSON.stringify entry}"
-            return if cache[entry.url]?
-            cache[entry.url] = entry.title
+            debug "fetch [#{channel}]- #{JSON.stringify entry}"
+            cache_id = entry.url + entry.title
+            return if cache[cache_id]?
+            cache[cache_id] = entry.title
             callback channel,entry  unless opts.silent
         setTimeout ->
           next()

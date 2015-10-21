@@ -10,7 +10,7 @@ SLACK_TOKEN = process.env.SLACK_TOKEN
 SLACK_WEB_HOOK_URL = process.env.SLACK_WEB_HOOK_URL
 
 
-should_send_sample_once = true
+#should_send_sample_once = true
 
 unless SLACK_TOKEN? or SLACK_WEB_HOOK_URL?
   console.error "set ENV variable  e.g. SLACK_TOKEN=a1b2cdef3456 or SLACK_WEB_HOOK_URL=http://..."

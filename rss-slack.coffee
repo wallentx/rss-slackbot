@@ -2,19 +2,39 @@ path = require 'path'
 request = require 'request'
 FeedParser = require 'feedparser'
 async = require 'async'
-debug = require('debug')('rssbot')
+debug = require('debug')('rssslack')
 Slackbot = require 'slackbot'
+Slack = require 'node-slack'
 
-unless process.env.SLACK_TOKEN?
-  console.error "set ENV variable  e.g. SLACK_TOKEN=a1b2cdef3456"
+SLACK_TOKEN = process.env.SLACK_TOKEN
+SLACK_WEB_HOOK_URL = process.env.SLACK_WEB_HOOK_URL
+
+
+should_send_sample_once = true
+
+unless SLACK_TOKEN? or SLACK_WEB_HOOK_URL?
+  console.error "set ENV variable  e.g. SLACK_TOKEN=a1b2cdef3456 or SLACK_WEB_HOOK_URL=http://..."
   process.exit 1
 
 console.log config = require path.resolve 'config.json'
 
-slack = new Slackbot config.slack.team, process.env.SLACK_TOKEN
+if SLACK_TOKEN?
+  slack_bot = new Slackbot config.slack.team, process.env.SLACK_TOKEN
+if SLACK_WEB_HOOK_URL?
+  slack_hook = new Slack SLACK_WEB_HOOK_URL
 
-notify = (channel, msg, callback) ->
-  slack.send channel, "#{config.slack.header} #{msg}", callback
+notify = (channel, entry, callback) ->
+  msg = "#{entry.title}\n#{entry.url}"
+  if slack_bot
+    slack_bot.send channel, "#{config.slack.header} #{msg}", callback
+  else
+    slack_hook.send {
+      channel: channel,
+      username: "#{config.slack.header}#{entry.feed_title}",
+      text: msg,
+      icon_url: 'https://slack.global.ssl.fastly.net/66f9/img/services/rss_64.png',
+      unfurl_links: true},
+      callback
 
 cache = {}
 
@@ -28,7 +48,7 @@ fetch = (feed_url, callback = ->) ->
   feed.on 'error', (err) ->
     callback err
   feed.on 'data', (chunk) ->
-    entries.push {url: chunk.link, title: chunk.title}
+    entries.push {url: chunk.link, title: chunk.title, date: chunk.date, author: chunk.author, feed_title: this.meta.title}
   feed.on 'end', ->
     callback null, entries
 
@@ -44,10 +64,12 @@ fetch_feeds_and_send_to = (channel, feeds, opts = {}, callback) ->
         for entry in entries
           do (entry) ->
             debug "fetch [#{channel}]- #{JSON.stringify entry}"
-            cache_id = entry.url + entry.title
+            cache_id = entry.url + entry.date
             return if cache[cache_id]?
             cache[cache_id] = entry.title
-            callback channel,entry  unless opts.silent
+            if !opts.silent or should_send_sample_once
+              should_send_sample_once = false
+              callback channel,entry
         setTimeout ->
           next()
         , 1000
@@ -61,7 +83,7 @@ run = (opts = {}, callback) ->
 
 onNewEntry = (channel, entry) ->
   debug "new entry - #{JSON.stringify entry}"
-  notify channel, "#{entry.title}\n#{entry.url}", (err, res) ->
+  notify channel, entry, (err, res) ->
     if err
       debug "notify error : #{err}"
       return

@@ -9,6 +9,7 @@
       "name" : "#news",
       "feeds" : [
         "http://shokai.org/blog/feed",
+        "http://b.hatena.ne.jp/naoya/rss",
         "http://b.hatena.ne.jp/shokai/rss",
         "http://masui.blog.jp/index.rdf"
       ]

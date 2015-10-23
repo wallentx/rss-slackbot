@@ -5,12 +5,14 @@ async = require 'async'
 debug = require('debug')('rssslack')
 Slackbot = require 'slackbot'
 Slack = require 'node-slack'
+Url = require 'url'
 
 SLACK_TOKEN = process.env.SLACK_TOKEN
 SLACK_WEB_HOOK_URL = process.env.SLACK_WEB_HOOK_URL
 
+# for DEBUG
+should_send_sample_once = process.env.SHOULD_SEND_SAMPLE_ONCE?
 
-#should_send_sample_once = true
 
 unless SLACK_TOKEN? or SLACK_WEB_HOOK_URL?
   console.error "set ENV variable  e.g. SLACK_TOKEN=a1b2cdef3456 or SLACK_WEB_HOOK_URL=http://..."
@@ -24,7 +26,10 @@ if SLACK_WEB_HOOK_URL?
   slack_hook = new Slack SLACK_WEB_HOOK_URL
 
 notify = (channel, entry, callback) ->
-  msg = "#{entry.title}\n#{entry.url}"
+  msg = ""
+  msg += "#{entry.title}\n"
+  msg += "##{entry.comment}\n"  if entry.comment?
+  msg += "#{entry.url}"
   if slack_bot
     slack_bot.send channel, "#{config.slack.header} #{msg}", callback
   else
@@ -48,7 +53,9 @@ fetch = (feed_url, callback = ->) ->
   feed.on 'error', (err) ->
     callback err
   feed.on 'data', (chunk) ->
-    entries.push {url: chunk.link, title: chunk.title, date: chunk.date, author: chunk.author, feed_title: this.meta.title}
+    entry = {url: chunk.link, title: chunk.title, date: chunk.date, feed_title: this.meta.title}
+    entry['comment'] = chunk["rdf:description"]?["#"]  if Url.parse(feed_url).hostname == 'b.hatena.ne.jp'
+    entries.push entry
   feed.on 'end', ->
     callback null, entries
 
@@ -68,6 +75,7 @@ fetch_feeds_and_send_to = (channel, feeds, opts = {}, callback) ->
             return if cache[cache_id]?
             cache[cache_id] = entry.title
             if !opts.silent or should_send_sample_once
+              console.log "#{JSON.stringify entry}"
               should_send_sample_once = false
               callback channel,entry
         setTimeout ->

@@ -7,6 +7,7 @@ Slackbot = require 'slackbot'
 Slack = require 'node-slack'
 Url = require 'url'
 
+Interval = 600
 
 ## Envs
 RSS_CONFIG_URL = process.env.RSS_CONFIG_URL
@@ -46,9 +47,9 @@ fetch_feeds_and_send_to = (channel, feeds, opts = {}, callback) ->
         for entry in entries
           do (entry) ->
             debug "fetch [#{channel}]- #{JSON.stringify entry}"
-            cache_id = entry.url + entry.date
+            cache_id = "#{entry.url}:#{entry.title}"
             return if cache[cache_id]?
-            cache[cache_id] = entry.title
+            cache[cache_id] = entry.date
             if !opts.silent or should_send_sample_once
               console.log "#{JSON.stringify entry}"
               should_send_sample_once = false
@@ -58,19 +59,19 @@ fetch_feeds_and_send_to = (channel, feeds, opts = {}, callback) ->
         , 1000
 
 
-## Run
-run = (config, opts = {}, notify) ->
-  onNewEntry = (channel, entry) ->
-    debug "new entry - #{JSON.stringify entry}"
-    notify channel, entry, (err, res) ->
-      if err
-        debug "notify error : #{err}"
-        return
-      debug res.body
-  for channel in config.channels
-    debug "for channel: #{channel.name}"
-    console.log "for channel: #{channel.name}"
-    fetch_feeds_and_send_to(channel.name, channel.feeds, opts, onNewEntry)
+## Config
+
+fetch_config = (callback) ->
+  if RSS_CONFIG_URL?
+    request.get RSS_CONFIG_URL, (error, response, body) ->
+      if error or response.statusCode != 200
+        callback error, null
+      else
+        callback null, (JSON.parse body)
+  else
+    callback null, (require path.resolve 'config.json')
+
+## Notification
 
 create_notify = (config) ->
   if SLACK_TOKEN?
@@ -93,26 +94,40 @@ create_notify = (config) ->
         unfurl_links: true},
         callback
 
-## Start
-start = (config) ->
+
+## Run
+
+run_with_config = (config, opts) ->
   console.log config
   notify = create_notify config
-  setInterval ->
-    run config, null, notify
-  , 1000 * config.interval
-  run config, {silent: true}, notify  # 最初の1回は通知しない
+  onNewEntry = (channel, entry) ->
+    debug "new entry - #{JSON.stringify entry}"
+    notify channel, entry, (err, res) ->
+      if err
+        debug "notify error : #{err}"
+        return
+      debug res.body
+  for channel in config.channels
+    debug "for channel: #{channel.name}"
+    console.log "for channel: #{channel.name}"
+    fetch_feeds_and_send_to(channel.name, channel.feeds, opts, onNewEntry)
 
 
-## main
+run = (opts = {}) ->
+  fetch_config (err, config) ->
+    if err
+      console.error "error: '#{RSS_CONFIG_URL}' #{error || body}"
+      return
+    run_with_config config, opts
+
+
+
+## Main
 unless SLACK_TOKEN? or SLACK_WEB_HOOK_URL?
   console.error "set ENV variable  e.g. SLACK_TOKEN=a1b2cdef3456 or SLACK_WEB_HOOK_URL=http://..."
   process.exit 1
 
-if RSS_CONFIG_URL?
-  request.get RSS_CONFIG_URL, (error, response, body) ->
-    if error or response.statusCode != 200
-      console.error "error: '#{RSS_CONFIG_URL}' #{error || body}"
-      process.exit 1
-    start JSON.parse body
-else
-  start (require path.resolve 'config.json')
+setInterval ->
+  run
+, 1000 * Interval
+run {silent: true}  # 最初の1回は通知しない

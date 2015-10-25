@@ -96,9 +96,8 @@ create_notify = (config) ->
 
 
 ## Run
-
 run_with_config = (config, opts) ->
-  console.log config
+  console.log JSON.stringify(config)
   notify = create_notify config
   onNewEntry = (channel, entry) ->
     debug "new entry - #{JSON.stringify entry}"

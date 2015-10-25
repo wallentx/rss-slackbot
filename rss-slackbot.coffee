@@ -9,6 +9,7 @@ Url = require 'url'
 
 Interval = 600
 
+
 ## Envs
 RSS_CONFIG_URL = process.env.RSS_CONFIG_URL
 SLACK_TOKEN = process.env.SLACK_TOKEN
@@ -18,7 +19,7 @@ should_send_sample_once = process.env.SHOULD_SEND_SAMPLE_ONCE?  # for DEBUG
 
 ## Fetcher
 
-cache = {}
+feeds_cache = {}
 
 fetch = (feed_url, callback = ->) ->
   try
@@ -37,9 +38,16 @@ fetch = (feed_url, callback = ->) ->
     callback null, entries
 
 fetch_feeds_and_send_to = (channel, feeds, opts = {}, callback) ->
-    async.eachSeries feeds, (url, next) ->
-      fetch url, (err, entries) ->
-        debug "channel: #{channel}, url: #{url}"
+    async.eachSeries feeds, (feed_url, next) ->
+      cache = feeds_cache[feed_url]
+      should_silent = !cache
+      #console.log "cache: #{cache}, silent: #{should_silent}"
+      unless cache
+        cache = {}
+        feeds_cache[feed_url] = cache
+
+      fetch feed_url, (err, entries) ->
+        debug "channel: #{channel}, url: #{feed_url}"
         if err
           debug JSON.stringify err
           next()
@@ -50,7 +58,7 @@ fetch_feeds_and_send_to = (channel, feeds, opts = {}, callback) ->
             cache_id = "#{entry.url}:#{entry.title}"
             return if cache[cache_id]?
             cache[cache_id] = entry.date
-            if !opts.silent or should_send_sample_once
+            if !should_silent or should_send_sample_once
               console.log "#{JSON.stringify entry}"
               should_send_sample_once = false
               callback channel,entry
@@ -127,4 +135,4 @@ unless SLACK_TOKEN? or SLACK_WEB_HOOK_URL?
 setInterval ->
   run()
 , 1000 * Interval
-run {silent: true}  # 最初の1回は通知しない
+run()

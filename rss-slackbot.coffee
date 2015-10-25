@@ -120,14 +120,12 @@ run = (opts = {}) ->
       return
     run_with_config config, opts
 
-
-
 ## Main
 unless SLACK_TOKEN? or SLACK_WEB_HOOK_URL?
   console.error "set ENV variable  e.g. SLACK_TOKEN=a1b2cdef3456 or SLACK_WEB_HOOK_URL=http://..."
   process.exit 1
 
 setInterval ->
-  run
+  run()
 , 1000 * Interval
 run {silent: true}  # 最初の1回は通知しない
